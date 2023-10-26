@@ -19,6 +19,7 @@ from tqdm import tqdm
 
 import logging
 from logging import StreamHandler
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 handler = StreamHandler()
@@ -26,6 +27,7 @@ handler.setLevel(logging.DEBUG)
 logger.addHandler(handler)
 
 torch.backends.cudnn.benchmark = True
+
 
 def get_data_path_list(train_path=None, val_path=None):
     if train_path is None:
@@ -41,6 +43,7 @@ def get_data_path_list(train_path=None, val_path=None):
     # train_list = train_list[-500:]
     # val_list = train_list[:500]
     return train_list, val_list
+
 
 @click.command()
 @click.option('-p', '--config_path', default='./Configs/config.yml', type=str)
@@ -68,13 +71,13 @@ def main(config_path):
 
     train_list, val_list = get_data_path_list(train_path, val_path)
 
-    train_dataloader = build_dataloader(train_list,
+    train_dataloader = build_dataloader(config, train_list,
                                         batch_size=batch_size,
                                         num_workers=num_workers,
                                         dataset_config=config.get('dataset_params', {}),
                                         device=device)
 
-    val_dataloader = build_dataloader(val_list,
+    val_dataloader = build_dataloader(config, val_list,
                                       batch_size=batch_size,
                                       validation=True,
                                       num_workers=num_workers // 2,
@@ -82,34 +85,34 @@ def main(config_path):
                                       dataset_config=config.get('dataset_params', {}))
 
     # define model
-    model = JDCNet(num_class=1) # num_class = 1 means regression
+    model = JDCNet(num_class=1)  # num_class = 1 means regression
 
     scheduler_params = {
-            "max_lr": float(config['optimizer_params'].get('lr', 5e-4)),
-            "pct_start": float(config['optimizer_params'].get('pct_start', 0.0)),
-            "epochs": epochs,
-            "steps_per_epoch": len(train_dataloader),
-        }
+        "max_lr": float(config['optimizer_params'].get('lr', 5e-4)),
+        "pct_start": float(config['optimizer_params'].get('pct_start', 0.0)),
+        "epochs": epochs,
+        "steps_per_epoch": len(train_dataloader),
+    }
 
     model.to(device)
     optimizer, scheduler = build_optimizer(
-        {"params": model.parameters(), "optimizer_params":{}, "scheduler_params": scheduler_params})
+        {"params": model.parameters(), "optimizer_params": {}, "scheduler_params": scheduler_params})
 
-    criterion = {'l1': nn.SmoothL1Loss(), # F0 loss (regression)
-                 'ce':  nn.BCEWithLogitsLoss() # silence loss (binary classification)
-                }
+    criterion = {'l1': nn.SmoothL1Loss(),  # F0 loss (regression)
+                 'ce': nn.BCEWithLogitsLoss()  # silence loss (binary classification)
+                 }
 
     loss_config = config['loss_params']
 
     trainer = Trainer(model=model,
-                        criterion=criterion,
-                        optimizer=optimizer,
-                        scheduler=scheduler,
-                        device=device,
-                        train_dataloader=train_dataloader,
-                        val_dataloader=val_dataloader,
-                        loss_config=loss_config,
-                        logger=logger)
+                      criterion=criterion,
+                      optimizer=optimizer,
+                      scheduler=scheduler,
+                      device=device,
+                      train_dataloader=train_dataloader,
+                      val_dataloader=val_dataloader,
+                      loss_config=loss_config,
+                      logger=logger)
 
     if config.get('pretrained_model', '') != '':
         trainer.load_checkpoint(config['pretrained_model'],
@@ -123,22 +126,23 @@ def main(config_path):
         continue
     print('All F0 data is computed.')
 
-    for epoch in range(1, epochs+1):
-            train_results = trainer._train_epoch()
-            eval_results = trainer._eval_epoch()
-            results = train_results.copy()
-            results.update(eval_results)
-            logger.info('--- epoch %d ---' % epoch)
-            for key, value in results.items():
-                if isinstance(value, float):
-                    logger.info('%-15s: %.4f' % (key, value))
-                    writer.add_scalar(key, value, epoch)
-                else:
-                    writer.add_figure(key, (v), epoch)
-            if (epoch % save_freq) == 0:
-                trainer.save_checkpoint(osp.join(log_dir, 'epoch_%05d.pth' % epoch))
+    for epoch in range(1, epochs + 1):
+        train_results = trainer._train_epoch()
+        eval_results = trainer._eval_epoch()
+        results = train_results.copy()
+        results.update(eval_results)
+        logger.info('--- epoch %d ---' % epoch)
+        for key, value in results.items():
+            if isinstance(value, float):
+                logger.info('%-15s: %.4f' % (key, value))
+                writer.add_scalar(key, value, epoch)
+            else:
+                writer.add_figure(key, (v), epoch)
+        if (epoch % save_freq) == 0:
+            trainer.save_checkpoint(osp.join(log_dir, 'epoch_%05d.pth' % epoch))
 
     return 0
 
-if __name__=="__main__":
+
+if __name__ == "__main__":
     main()
