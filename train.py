@@ -70,7 +70,6 @@ def main(config_path):
     num_workers = config.get('num_workers', 8)
 
     train_list, val_list = get_data_path_list(train_path, val_path)
-
     train_dataloader = build_dataloader(config, train_list,
                                         batch_size=batch_size,
                                         num_workers=num_workers,

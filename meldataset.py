@@ -79,6 +79,8 @@ class MelDataset(torch.utils.data.Dataset):
         wave_tensor = self._load_tensor(path)
 
         # use pyworld to get F0
+        if not os.path.exists(os.path.join(self.fea_dir, path.split("/")[-2])):
+            os.makedirs(os.path.join(self.fea_dir, path.split("/")[-2]))
         output_file = os.path.join(self.fea_dir, path.split("/")[-2], path.split("/")[-1].split(".")[0] + "_f0.npy")
         # check if the file exists
         if os.path.isfile(output_file):  # if exists, load it directly
@@ -93,7 +95,8 @@ class MelDataset(torch.utils.data.Dataset):
                 _f0, t = pw.dio(x, self.sr, frame_period=frame_period)  # if harvest fails, try dio
             f0 = pw.stonemask(x, _f0, t, self.sr)
             # save the f0 info for later use
-            np.save(output_file, f0)
+            if not os.path.exists(output_file):
+                np.save(output_file, f0)
 
         f0 = torch.from_numpy(f0).float()
 
@@ -183,7 +186,7 @@ def build_dataloader(config, path_list,
                      device='cpu',
                      collate_config={},
                      dataset_config={}):
-    dataset = MelDataset(config, path_list, validation=validation, **dataset_config)
+    dataset = MelDataset(path_list, config=config, validation=validation, **dataset_config)
     collate_fn = Collater(**collate_config)
 
     data_loader = DataLoader(dataset,

@@ -1,4 +1,4 @@
-log_dir: "Checkpoint"
+log_dir: "/data8/master_dataset_model_zhangyuqiang/StyleTTS/models/f0"
 save_freq: 10
 device: "cuda"
 epochs: 100
